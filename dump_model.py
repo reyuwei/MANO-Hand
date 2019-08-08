@@ -1,7 +1,6 @@
 import pickle
 import numpy as np
 
-
 def dump_model(src_path, dst_path):
   with open(src_path, 'rb') as f:
     data = pickle.load(f, encoding='latin1')
@@ -23,14 +22,14 @@ def dump_model(src_path, dst_path):
 
 
 def dump_scans():
-  with open('./official_model/MANO_LEFT.pkl', 'rb') as f:
+  with open('../model/MANO_LEFT.pkl', 'rb') as f:
     data = pickle.load(f, encoding='latin1')
   basis = np.array(data['hands_components'])
   mean = np.array(data['hands_mean'])
   left = np.matmul(np.array(data['hands_coeffs']), basis) + mean
   left = np.reshape(left, [-1, 15, 3])
 
-  with open('./official_model/MANO_RIGHT.pkl', 'rb') as f:
+  with open('../model/MANO_RIGHT.pkl', 'rb') as f:
     data = pickle.load(f, encoding='latin1')
   basis = np.array(data['hands_components'])
   mean = np.array(data['hands_mean'])
@@ -45,4 +44,6 @@ def dump_scans():
 
 
 if __name__ == '__main__':
-  dump_scans()
+  # dump_scans()
+  dump_model("../model/MANO_LEFT.pkl","dump_mano_left.pkl")
+  dump_model("../model/MANO_RIGHT.pkl","dump_mano_right.pkl")

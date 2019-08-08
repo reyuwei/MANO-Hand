@@ -6,7 +6,7 @@ from transforms3d.axangles import axangle2mat
 
 
 axangles = np.load('./axangles.npy')
-mesh = MANOModel('./model.pkl')
+mesh = MANOModel('dump_mano_left.pkl')
 view_mat = np.matmul(axangle2mat([1, 0, 0], -np.pi/2), axangle2mat([0, 1, 0], -np.pi/2))
 verts = []
 for a in axangles:

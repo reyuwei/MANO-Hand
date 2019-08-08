@@ -15,7 +15,7 @@ class MANOModel():
     model_path: Path to model parameters dumped by `dump_model.py`.
     """
     with open(model_path, 'rb') as f:
-      params = pickle.load(f)
+      params = pickle.load(f, encoding='bytes')
 
       self.pose_pca_basis = params['pose_pca_basis']
       self.pose_pca_mean = params['pose_pca_mean']
@@ -28,7 +28,7 @@ class MANOModel():
       self.mesh_shape_basis = params['mesh_shape_basis']
       self.mesh_template = params['mesh_template']
 
-      self.faces =  params['faces']
+      self.faces = params['faces']
 
       self.parents = params['parents']
 
@@ -37,13 +37,15 @@ class MANOModel():
 
     self.pose = np.zeros((self.n_joints, 3))
     self.shape = np.zeros(self.n_shape_params)
+    self.rot = np.zeros([1,3])
     self.verts = None
+    self.rest_verts = None
     self.J = None
     self.R = None
 
     self.update()
 
-  def set_params(self, pose_abs=None, pose_pca=None, shape=None):
+  def set_params(self, pose_abs=None, pose_pca=None, shape=None, global_rot=None):
     """
     Parameters
     ---------
@@ -62,11 +64,13 @@ class MANOModel():
     if pose_abs is not None:
       self.pose = pose_abs
     if pose_pca is not None:
-      self.pose = np.dot(
-        np.expand_dims(pose_pca, 0), self.pose_pca_basis[:pose_pca.shape[0]]
-      )[0] + self.pose_pca_mean
+      self.pose = np.dot(np.expand_dims(pose_pca, 0), self.pose_pca_basis[:pose_pca.shape[0]])[0] + self.pose_pca_mean
+      #                  1*N                          N*45                          = 1*45 => 45
       self.pose = np.reshape(self.pose, [self.n_joints - 1, 3])
-      self.pose = np.concatenate([np.zeros([1, 3]), self.pose], 0)
+      if global_rot is not None:
+        self.rot = np.reshape(global_rot, [1, 3])
+      self.pose = np.concatenate([self.rot, self.pose], 0) # global rotation
+
     if shape is not None:
       self.shape = shape
     self.update()
@@ -85,6 +89,9 @@ class MANOModel():
     )
     # how pose affect mesh
     v_posed = v_shaped + self.mesh_pose_basis.dot((self.R[1:] - I_cube).ravel())
+    ### pose and shape parameters affect mesh at rest pose
+    self.rest_verts = v_posed
+
     # world transformation of each joint
     G = np.empty((self.n_joints, 4, 4))
     G[0] = self.with_zeros(np.hstack((self.R[0], self.J[0, :].reshape([3, 1]))))
@@ -186,10 +193,27 @@ class MANOModel():
       for f in self.faces + 1:
         fp.write('f %d %d %d\n' % (f[0], f[1], f[2]))
 
+    restpose_path = path[:path.index(".obj")] + "_restpose.obj"
+    with open(restpose_path, 'w') as fp:
+      for v in self.rest_verts:
+        fp.write('v %f %f %f\n' % (v[0], v[1], v[2]))
+      for f in self.faces + 1:
+        fp.write('f %d %d %d\n' % (f[0], f[1], f[2]))
+
+
 
 if __name__ == '__main__':
-  model = MANOModel('./model.pkl')
-  # np.random.seed(9608)
-  # pose_pca = np.random.uniform(-1, 1, 12)
-  # model.set_params(pose_pca=pose_pca)
+  model = MANOModel('./dump_mano_left.pkl')
+  np.random.seed(9608)
+  # pose_pca = np.random.rand(12)*10
+  pose_pca = [-0.32322194, 0.740878, -1.182191, 1.51246975,
+   -1.89044963, 0.68187004, -0.33078079, 0.23475931, -1.43845225]
+  pose_pca = np.asarray(pose_pca)
+
+  shape_abs = [-0.33191198,  0.88129797, -1.9995425, -0.79066971,
+                 -1.41297644, -1.63064562, -1.25495915, -0.61775709,
+                 -0.4129301, 0.15526694]
+  # shape_abs = np.random.rand(10)
+
+  model.set_params(pose_pca=pose_pca, shape=shape_abs, global_rot=[1,0,0])
   model.export_obj('./hand.obj')
